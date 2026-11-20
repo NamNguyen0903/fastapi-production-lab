@@ -246,3 +246,43 @@ jobs:
 
           echo "Published image:"
           echo "${IMAGE}:${TAG}"
+
+  deploy:
+    name: Deploy Render Staging
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    needs:
+      - publish
+
+    permissions:
+      contents: read
+
+    environment: staging
+
+    steps:
+      - name: Trigger Render deployment
+        shell: bash
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$RENDER_DEPLOY_HOOK_URL" ]]; then
+            echo "Render Deploy Hook secret is missing"
+            exit 1
+          fi
+
+          echo "Deploying commit: ${GITHUB_SHA}"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --get \
+            --data-urlencode "ref=${GITHUB_SHA}" \
+            --output /tmp/render-deploy-response.json \
+            --url "$RENDER_DEPLOY_HOOK_URL"
+
+          echo "Render deployment request accepted."
