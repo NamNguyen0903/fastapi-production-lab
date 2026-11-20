@@ -131,3 +131,57 @@ jobs:
           ignore-unfixed: false
           version: v0.76.2
           skip-files: '**/pip/_vendor/bom.cdx.json'
+
+      - name: Generate vulnerability report
+        if: ${{ always() }}
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/report" \
+            aquasec/trivy:0.76.2 image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --skip-files '**/pip/_vendor/bom.cdx.json' \
+            --format json \
+            --output /report/trivy-report.json \
+            fastapi-production-lab:ci
+
+      - name: Summarize vulnerabilities
+        if: ${{ always() }}
+        run: |
+          if [ ! -f trivy-report.json ]; then
+            echo "Trivy report was not generated"
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          from collections import Counter
+
+          with open("trivy-report.json") as f:
+              report = json.load(f)
+
+          for result in report.get("Results", []):
+              vulnerabilities = result.get("Vulnerabilities") or []
+
+              if not vulnerabilities:
+                  continue
+
+              packages = Counter(
+                  item["PkgName"] for item in vulnerabilities
+              )
+
+              fixable = sum(
+                  bool(item.get("FixedVersion"))
+                  for item in vulnerabilities
+              )
+
+              print("Target:", result.get("Target"))
+              print("Total findings:", len(vulnerabilities))
+              print("With fixed version:", fixable)
+              print("Without fixed version:", len(vulnerabilities) - fixable)
+              print("Top affected packages:")
+
+              for name, count in packages.most_common(10):
+                  print(f"  {name}: {count}")
+          PY
