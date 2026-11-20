@@ -60,3 +60,37 @@ review.
 - Record mitigation measures.
 - Verify vulnerability status with Debian advisories.
 - Obtain a documented risk decision before release.
+
+## CVE-2026-76642 — Runtime Risk Assessment
+
+### Vulnerability
+- CVE: CVE-2026-76642
+- Package group: util-linux
+- Scanner severity: HIGH
+- Scanner status: affected
+
+### Verified Runtime Controls
+- Container runs as non-root (UID 100).
+- Privileged mode: false.
+- Additional capabilities: none.
+- Effective capabilities: 0.
+- Seccomp mode: 2.
+- No Docker mounts were reported.
+- no-new-privileges: enabled after hardening.
+
+### Mitigation
+The application runs without root privileges.
+Runtime security controls restrict privilege escalation.
+
+### Residual Risk
+The vulnerable packages remain in the Docker image.
+Exploitability has not been fully established.
+
+### Decision
+Pending security review. Not accepted or resolved.
+
+### Follow-up
+- Monitor Debian security advisories.
+- Apply upstream package fixes when available.
+- Rescan after base image updates.
+- Reassess when deployment configuration changes.
