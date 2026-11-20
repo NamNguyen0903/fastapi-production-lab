@@ -94,3 +94,32 @@ Pending security review. Not accepted or resolved.
 - Apply upstream package fixes when available.
 - Rescan after base image updates.
 - Reassess when deployment configuration changes.
+
+## Release Security Decision
+
+### CI Verification
+- Ruff Format: Pending latest-run confirmation
+- Ruff Lint: Pending latest-run confirmation
+- Pytest: Pending latest-run confirmation
+- Dependency Audit: Pending latest-run confirmation
+- Gitleaks Secret Scan: Pending latest-run confirmation
+- Trivy Image Scan: Pending latest-run confirmation
+
+### Outstanding Risk
+- 47 HIGH vulnerability findings remain.
+- No CRITICAL findings in the verified scan.
+- Unfixed vulnerabilities are reported but excluded
+  from the current fixable-vulnerability gate.
+- Risk acceptance has not been granted.
+
+### Decision
+- Security scanning implementation: Ready for review.
+- Production deployment: Not approved.
+- Outstanding vulnerabilities: Pending risk review.
+
+### Required Follow-up
+- Review the 11 remaining CVEs.
+- Verify upstream advisories and available patches.
+- Document mitigations and residual risks.
+- Assign a risk owner and review date.
+- Reassess before production deployment.
