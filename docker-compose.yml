@@ -18,6 +18,10 @@ services:
   api:
     build:
       context: .
+
+    security_opt:
+      - no-new-privileges:true
+
     environment:
       APP_NAME: fastapi-production-starter
       APP_ENV: development
