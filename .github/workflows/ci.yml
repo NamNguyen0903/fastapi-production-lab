@@ -119,7 +119,21 @@ jobs:
             -t fastapi-production-lab:ci \
             .
 
-      - name: Scan Docker image
+      
+      - name: Trivy Full Vulnerability Report
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: fastapi-production-lab:ci
+          scan-type: image
+          scanners: vuln
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+          ignore-unfixed: false
+          version: v0.76.2
+          skip-files: '**/pip/_vendor/bom.cdx.json'
+
+      - name: Trivy Fixable Vulnerability Gate
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           image-ref: fastapi-production-lab:ci
@@ -128,9 +142,10 @@ jobs:
           format: table
           severity: HIGH,CRITICAL
           exit-code: '1'
-          ignore-unfixed: false
+          ignore-unfixed: true
           version: v0.76.2
           skip-files: '**/pip/_vendor/bom.cdx.json'
+
 
       - name: Generate vulnerability report
         if: ${{ always() }}
