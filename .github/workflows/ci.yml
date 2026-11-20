@@ -262,27 +262,115 @@ jobs:
     environment: staging
 
     steps:
-      - name: Trigger Render deployment
+      
+      - name: Deploy and verify Render staging
         shell: bash
+        timeout-minutes: 25
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+          BASE_URL: https://fastapi-production-lab-api.onrender.com
         run: |
           set -euo pipefail
 
-          if [[ -z "$RENDER_DEPLOY_HOOK_URL" ]]; then
-            echo "Render Deploy Hook secret is missing"
+          for name in RENDER_DEPLOY_HOOK_URL RENDER_API_KEY RENDER_SERVICE_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing $name"
+              exit 1
+            fi
+          done
+
+          echo "Deploying SHA: $GITHUB_SHA"
+
+          HTTP_CODE=$(curl -sS \
+            --retry 3 \
+            --connect-timeout 10 \
+            --max-time 45 \
+            --get \
+            --data-urlencode "ref=$GITHUB_SHA" \
+            -o /tmp/deploy.json \
+            -w '%{http_code}' \
+            "$RENDER_DEPLOY_HOOK_URL")
+
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::error::Deploy hook returned HTTP $HTTP_CODE"
             exit 1
           fi
 
-          echo "Deploying commit: ${GITHUB_SHA}"
+          DEPLOY_ID=$(jq -r '.deploy.id // empty' /tmp/deploy.json)
 
-          curl \
-            --fail-with-body \
-            --silent \
-            --show-error \
-            --get \
-            --data-urlencode "ref=${GITHUB_SHA}" \
-            --output /tmp/render-deploy-response.json \
-            --url "$RENDER_DEPLOY_HOOK_URL"
+          if [[ -z "$DEPLOY_ID" ]]; then
+            echo "::error::Missing deploy ID"
+            exit 1
+          fi
 
-          echo "Render deployment request accepted."
+          echo "Deployment ID: $DEPLOY_ID"
+
+          DEPLOY_LIVE=false
+
+          for attempt in {1..60}; do
+            curl -fsS \
+              --retry 3 \
+              --connect-timeout 10 \
+              --max-time 30 \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys/$DEPLOY_ID" \
+              -o /tmp/deploy-status.json
+
+            STATUS=$(jq -r '.status // empty' /tmp/deploy-status.json)
+            echo "Attempt $attempt: $STATUS"
+
+            case "$STATUS" in
+              live)
+                DEPLOY_LIVE=true
+                break
+                ;;
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "::error::Deployment ended with $STATUS"
+                exit 1
+                ;;
+              created|queued|build_in_progress|update_in_progress|pre_deploy_in_progress)
+                sleep 15
+                ;;
+              *)
+                echo "::error::Unexpected deployment status: $STATUS"
+                exit 1
+                ;;
+            esac
+          done
+
+          if [[ "$DEPLOY_LIVE" != "true" ]]; then
+            echo "::error::Deployment timed out"
+            exit 1
+          fi
+
+          DEPLOYED_SHA=$(jq -r '.commit.id // empty' /tmp/deploy-status.json)
+
+          if [[ "$DEPLOYED_SHA" != "$GITHUB_SHA" ]]; then
+            echo "::error::Deploy SHA mismatch"
+            echo "Expected: $GITHUB_SHA"
+            echo "Actual: $DEPLOYED_SHA"
+            exit 1
+          fi
+
+          echo "Deployment live with correct SHA."
+
+          for endpoint in health ready; do
+            CODE=$(curl -sS \
+              --retry 5 \
+              --retry-delay 5 \
+              --max-time 30 \
+              -o /tmp/"$endpoint".json \
+              -w '%{http_code}' \
+              "$BASE_URL/api/v1/$endpoint")
+
+            if [[ "$CODE" != "200" ]]; then
+              echo "::error::$endpoint returned HTTP $CODE"
+              exit 1
+            fi
+
+            echo "$endpoint: HTTP 200"
+          done
+
+          echo "Post-deploy verification PASSED"
