@@ -146,6 +146,11 @@ jobs:
           version: v0.76.2
           skip-files: '**/pip/_vendor/bom.cdx.json'
 
+      - name: PROD-104 Negative Test
+        run: |
+          echo "Simulating security gate failure"
+          exit 1
+
 
       - name: Generate vulnerability report
         if: ${{ always() }}
