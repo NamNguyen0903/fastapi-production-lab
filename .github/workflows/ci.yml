@@ -90,6 +90,12 @@ jobs:
       - name: Audit Python dependencies
         run: python -m pip_audit --local
 
+      - name: PROD-107 Security Failure Simulation
+        run: |
+          echo "Simulating Dependency Audit failure"
+          exit 1
+
+
   secret-scan:
     name: Gitleaks Secret Scan
     runs-on: ubuntu-latest
